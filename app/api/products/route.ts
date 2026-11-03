@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 
-export const runtime = "nodejs";
 
 const MONGO_URI = process.env.MONGO_URI;
 
