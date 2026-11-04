@@ -1,12 +1,19 @@
 {
-  "name": "backend",
+  "name": "ergospace-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "ErgoSpace Backend API",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"No tests configured yet\""
   },
-  "keywords": [],
+  "keywords": [
+    "ergospace",
+    "backend",
+    "express",
+    "mongodb"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
