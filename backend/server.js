@@ -20,6 +20,7 @@ app.get("/test", (req, res) => {
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find();
+    console.log("Products found:", products.length);
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });
