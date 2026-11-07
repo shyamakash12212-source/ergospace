@@ -11,18 +11,44 @@ const verifyAdmin = require("./middleware/auth");
 
 const app = express();
 
-// Middleware
-app.use(cors({
-  origin: "https://ergospace-frontend.vercel.app",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-}));
+// CORS configuration
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "https://ergospace-frontend.vercel.app",
+];
 
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// Middleware
 app.use(express.json({ limit: "20kb" }));
 
 // Home route
 app.get("/", (req, res) => {
   res.send("ErgoSpace API is running!");
+});
+
+// Get all products
+app.get("/api/products", async (req, res) => {
+  try {
+    const products = await Product.find();
+    res.status(200).json(products);
+  } catch (error) {
+    console.error("Get products error:", error.message);
+    res.status(500).json({ message: "Unable to load products." });
+  }
 });
 
 // Admin login
@@ -37,7 +63,7 @@ app.post("/api/admin/login", async (req, res) => {
       !password
     ) {
       return res.status(400).json({
-        message: "Valid username and password are required.",
+        message: "Username and password are required.",
       });
     }
 
@@ -51,102 +77,82 @@ app.post("/api/admin/login", async (req, res) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(password, admin.password);
+    const passwordMatch = await bcrypt.compare(
+      password,
+      admin.password
+    );
 
-    if (!isMatch) {
+    if (!passwordMatch) {
       return res.status(401).json({
         message: "Invalid username or password.",
       });
     }
 
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET is missing.");
+      return res.status(500).json({
+        message: "Server configuration error.",
+      });
+    }
+
     const token = jwt.sign(
       {
-        adminId: admin._id,
+        id: admin._id,
+        username: admin.username,
         role: "admin",
       },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
+      { expiresIn: "1h" }
     );
 
-    return res.status(200).json({
-      message: "Admin login successful.",
+    res.status(200).json({
+      message: "Login successful.",
       token,
     });
-
   } catch (error) {
-    console.error("Login error:", error.message);
-
-    return res.status(500).json({
-      message: "Login failed.",
-    });
+    console.error("Admin login error:", error.message);
+    res.status(500).json({ message: "Login failed." });
   }
 });
 
-// Get all products (Public)
-app.get("/api/products", async (req, res) => {
-  try {
-    const products = await Product.find().sort({ createdAt: -1 });
-
-    return res.status(200).json(products);
-
-  } catch (error) {
-    console.error("Fetch error:", error.message);
-
-    return res.status(500).json({
-      message: "Failed to fetch products.",
-    });
-  }
-});
-
-// Add product (Admin only)
+// Add product - Admin only
 app.post("/api/products", verifyAdmin, async (req, res) => {
   try {
-    const { name, category, description, price, image, features } = req.body;
+    const { name, category, price, description, image } = req.body;
 
     if (
       typeof name !== "string" ||
       !name.trim() ||
       typeof category !== "string" ||
       !category.trim() ||
-      typeof description !== "string" ||
-      !description.trim() ||
-      price === undefined ||
-      price === null ||
-      price === "" ||
-      !Number.isFinite(Number(price)) ||
-      Number(price) < 0
+      !Number.isFinite(price) ||
+      price < 0
     ) {
       return res.status(400).json({
-        message: "Please provide valid product details.",
+        message: "Valid name, category and price are required.",
       });
     }
 
     const product = await Product.create({
       name: name.trim(),
       category: category.trim(),
-      description: description.trim(),
-      price: Number(price),
+      price,
+      description:
+        typeof description === "string" ? description.trim() : "",
       image: typeof image === "string" ? image.trim() : "",
-      features: Array.isArray(features) ? features : [],
     });
 
-    return res.status(201).json({
-      message: "Product added successfully.",
+    res.status(201).json({
+      message: "Product created successfully.",
       product,
     });
-
   } catch (error) {
     console.error("Add product error:", error.message);
-
-    return res.status(400).json({
-      message: "Failed to add product.",
-    });
+    res.status(500).json({ message: "Unable to add product." });
   }
 });
 
-// Edit product (Admin only)
+// Update product - Admin only
 app.put("/api/products/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -157,16 +163,14 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
       });
     }
 
+    const updates = {};
     const allowedFields = [
       "name",
       "category",
-      "description",
       "price",
+      "description",
       "image",
-      "features",
     ];
-
-    const updates = {};
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
@@ -174,117 +178,57 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
       }
     }
 
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        message: "No valid fields provided for update.",
-      });
-    }
-
     if (
       updates.name !== undefined &&
       (typeof updates.name !== "string" || !updates.name.trim())
     ) {
       return res.status(400).json({
-        message: "Invalid product name.",
+        message: "Product name is invalid.",
       });
     }
 
     if (
       updates.category !== undefined &&
-      (typeof updates.category !== "string" || !updates.category.trim())
+      (typeof updates.category !== "string" ||
+        !updates.category.trim())
     ) {
       return res.status(400).json({
-        message: "Invalid category.",
+        message: "Product category is invalid.",
       });
     }
 
     if (
-      updates.description !== undefined &&
-      (typeof updates.description !== "string" || !updates.description.trim())
+      updates.price !== undefined &&
+      (!Number.isFinite(updates.price) || updates.price < 0)
     ) {
       return res.status(400).json({
-        message: "Invalid description.",
+        message: "Product price is invalid.",
       });
     }
 
-    if (updates.price !== undefined) {
-      if (
-        updates.price === "" ||
-        !Number.isFinite(Number(updates.price)) ||
-        Number(updates.price) < 0
-      ) {
-        return res.status(400).json({
-          message: "Invalid price.",
-        });
-      }
-
-      updates.price = Number(updates.price);
-    }
-
-    if (
-      updates.image !== undefined &&
-      typeof updates.image !== "string"
-    ) {
-      return res.status(400).json({
-        message: "Invalid image.",
-      });
-    }
-
-    if (
-      updates.features !== undefined &&
-      !Array.isArray(updates.features)
-    ) {
-      return res.status(400).json({
-        message: "Features must be an array.",
-      });
-    }
-
-    if (updates.name !== undefined) {
-      updates.name = updates.name.trim();
-    }
-
-    if (updates.category !== undefined) {
-      updates.category = updates.category.trim();
-    }
-
-    if (updates.description !== undefined) {
-      updates.description = updates.description.trim();
-    }
-
-    if (updates.image !== undefined) {
-      updates.image = updates.image.trim();
-    }
-
-    const updatedProduct = await Product.findByIdAndUpdate(
+    const product = await Product.findByIdAndUpdate(
       id,
-      { $set: updates },
-      {
-        new: true,
-        runValidators: true,
-      }
+      updates,
+      { new: true, runValidators: true }
     );
 
-    if (!updatedProduct) {
+    if (!product) {
       return res.status(404).json({
         message: "Product not found.",
       });
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       message: "Product updated successfully.",
-      product: updatedProduct,
+      product,
     });
-
   } catch (error) {
     console.error("Update product error:", error.message);
-
-    return res.status(400).json({
-      message: "Failed to update product.",
-    });
+    res.status(500).json({ message: "Unable to update product." });
   }
 });
 
-// Delete product (Admin only)
+// Delete product - Admin only
 app.delete("/api/products/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -295,41 +239,36 @@ app.delete("/api/products/:id", verifyAdmin, async (req, res) => {
       });
     }
 
-    const deletedProduct = await Product.findByIdAndDelete(id);
+    const product = await Product.findByIdAndDelete(id);
 
-    if (!deletedProduct) {
+    if (!product) {
       return res.status(404).json({
         message: "Product not found.",
       });
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       message: "Product deleted successfully.",
     });
-
   } catch (error) {
     console.error("Delete product error:", error.message);
-
-    return res.status(500).json({
-      message: "Failed to delete product.",
-    });
+    res.status(500).json({ message: "Unable to delete product." });
   }
 });
 
-// Connect MongoDB and start server
+// MongoDB connection and server start
+const PORT = process.env.PORT || 5001;
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB Connected Successfully!");
-    console.log("Connected database:", mongoose.connection.name);
 
-    const PORT = process.env.PORT || 5001;
-
-app.listen(PORT, () => {
-  console.log(`ErgoSpace backend running on port ${PORT}`);
-});
-})
-.catch((error) => {
-  console.error("MongoDB Connection Error:", error.message);
-  process.exit(1);
-});
+    app.listen(PORT, () => {
+      console.log(`ErgoSpace backend running on port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("MongoDB Connection Error:", error.message);
+    process.exit(1);
+  });
