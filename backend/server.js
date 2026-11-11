@@ -1,9 +1,12 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
+const cloudinary = require("./cloudinary");
+const multer = require("multer");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-require("dotenv").config();
 
 const Product = require("./models/Product");
 const Admin = require("./models/Admin");
@@ -20,7 +23,7 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: function (origin, callback) {
+    origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -35,6 +38,23 @@ app.use(
 // Middleware
 app.use(express.json({ limit: "20kb" }));
 
+// Multer image upload configuration
+const storage = multer.memoryStorage();
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter: (req, file, callback) => {
+    if (file.mimetype.startsWith("image/")) {
+      callback(null, true);
+    } else {
+      callback(new Error("Only image files are allowed."));
+    }
+  },
+});
+
 // Home route
 app.get("/", (req, res) => {
   res.send("ErgoSpace API is running!");
@@ -47,7 +67,9 @@ app.get("/api/products", async (req, res) => {
     res.status(200).json(products);
   } catch (error) {
     console.error("Get products error:", error.message);
-    res.status(500).json({ message: "Unable to load products." });
+    res.status(500).json({
+      message: "Unable to load products.",
+    });
   }
 });
 
@@ -89,7 +111,6 @@ app.post("/api/admin/login", async (req, res) => {
     }
 
     if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET is missing.");
       return res.status(500).json({
         message: "Server configuration error.",
       });
@@ -111,7 +132,9 @@ app.post("/api/admin/login", async (req, res) => {
     });
   } catch (error) {
     console.error("Admin login error:", error.message);
-    res.status(500).json({ message: "Login failed." });
+    res.status(500).json({
+      message: "Login failed.",
+    });
   }
 });
 
@@ -138,8 +161,13 @@ app.post("/api/products", verifyAdmin, async (req, res) => {
       category: category.trim(),
       price,
       description:
-        typeof description === "string" ? description.trim() : "",
-      image: typeof image === "string" ? image.trim() : "",
+        typeof description === "string"
+          ? description.trim()
+          : "",
+      image:
+        typeof image === "string"
+          ? image.trim()
+          : "",
     });
 
     res.status(201).json({
@@ -148,9 +176,55 @@ app.post("/api/products", verifyAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Add product error:", error.message);
-    res.status(500).json({ message: "Unable to add product." });
+    res.status(500).json({
+      message: "Unable to add product.",
+    });
   }
 });
+
+// Upload product image - Admin only
+app.post(
+  "/api/upload",
+  verifyAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          message: "Please select an image.",
+        });
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "ergospace/products",
+            resource_type: "image",
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        stream.end(req.file.buffer);
+      });
+
+      res.status(200).json({
+        message: "Image uploaded successfully.",
+        imageUrl: result.secure_url,
+      });
+    } catch (error) {
+      console.error("Image upload error:", error.message);
+      res.status(500).json({
+        message: "Unable to upload image.",
+      });
+    }
+  }
+);
 
 // Update product - Admin only
 app.put("/api/products/:id", verifyAdmin, async (req, res) => {
@@ -206,10 +280,21 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
       });
     }
 
+    ["name", "category", "description", "image"].forEach(
+      (field) => {
+        if (typeof updates[field] === "string") {
+          updates[field] = updates[field].trim();
+        }
+      }
+    );
+
     const product = await Product.findByIdAndUpdate(
       id,
       updates,
-      { new: true, runValidators: true }
+      {
+        new: true,
+        runValidators: true,
+      }
     );
 
     if (!product) {
@@ -224,7 +309,9 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Update product error:", error.message);
-    res.status(500).json({ message: "Unable to update product." });
+    res.status(500).json({
+      message: "Unable to update product.",
+    });
   }
 });
 
@@ -252,8 +339,34 @@ app.delete("/api/products/:id", verifyAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Delete product error:", error.message);
-    res.status(500).json({ message: "Unable to delete product." });
+    res.status(500).json({
+      message: "Unable to delete product.",
+    });
   }
+});
+
+// Handle upload and other middleware errors
+app.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(400).json({
+      message:
+        error.code === "LIMIT_FILE_SIZE"
+          ? "Image must be 5 MB or smaller."
+          : "Image upload error.",
+    });
+  }
+
+  if (error.message === "Only image files are allowed.") {
+    return res.status(400).json({
+      message: error.message,
+    });
+  }
+
+  console.error("Server error:", error.message);
+
+  res.status(500).json({
+    message: "Internal server error.",
+  });
 });
 
 // MongoDB connection and server start
@@ -265,10 +378,16 @@ mongoose
     console.log("MongoDB Connected Successfully!");
 
     app.listen(PORT, () => {
-      console.log(`ErgoSpace backend running on port ${PORT}`);
+      console.log(
+        `ErgoSpace backend running on port ${PORT}`
+      );
     });
   })
   .catch((error) => {
-    console.error("MongoDB Connection Error:", error.message);
+    console.error(
+      "MongoDB Connection Error:",
+      error.message
+    );
+
     process.exit(1);
   });
