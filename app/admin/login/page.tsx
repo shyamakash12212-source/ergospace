@@ -16,7 +16,7 @@ export default function AdminLogin() {
 
     try {
       const response = await fetch(
-        "https://ergospace-backend.onrender.com/api/admin/login",
+        "http://localhost:5001/api/admin/login",
         {
           method: "POST",
           headers: {

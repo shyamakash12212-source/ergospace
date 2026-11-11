@@ -7,7 +7,7 @@ import {
   type ChangeEvent,
 } from "react";
 
-const API_BASE = "https://ergospace-backend.onrender.com";
+const API_BASE = "http://localhost:5001";
 const API_URL = `${API_BASE}/api/products`;
 
 interface Product {
@@ -17,6 +17,7 @@ interface Product {
   price: number;
   description: string;
   image?: string;
+  features?: string[];
 }
 
 const emptyForm = {
@@ -25,6 +26,7 @@ const emptyForm = {
   price: "",
   description: "",
   image: "",
+  features: "",
 };
 
 export default function AdminDashboard() {
@@ -56,7 +58,9 @@ export default function AdminDashboard() {
     setError("");
 
     try {
-      const response = await fetch(API_URL);
+      const response = await fetch(API_URL, {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         throw new Error("Unable to load products.");
@@ -81,7 +85,12 @@ export default function AdminDashboard() {
   function handleChange(
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   }
 
   function handleImageChange(e: ChangeEvent<HTMLInputElement>) {
@@ -171,8 +180,10 @@ export default function AdminDashboard() {
     setSaving(true);
 
     try {
-      // Upload selected image to Cloudinary first.
       const imageUrl = await uploadImage(token);
+
+      // DEBUG: Check features entered in the textarea
+      console.log("Features entered:", form.features);
 
       const productData = {
         name: form.name.trim(),
@@ -180,7 +191,14 @@ export default function AdminDashboard() {
         price,
         description: form.description.trim(),
         image: imageUrl,
+        features: form.features
+          .split("\n")
+          .map((feature) => feature.trim())
+          .filter(Boolean),
       };
+
+      // DEBUG: Check features sent to backend
+      console.log("Features sent to backend:", productData.features);
 
       const response = await fetch(
         editingId ? `${API_URL}/${editingId}` : API_URL,
@@ -195,6 +213,8 @@ export default function AdminDashboard() {
       );
 
       const data = await response.json();
+
+      console.log("Backend response:", data);
 
       if (!response.ok) {
         throw new Error(data.message || "Unable to save product.");
@@ -229,6 +249,7 @@ export default function AdminDashboard() {
       price: String(product.price),
       description: product.description,
       image: product.image || "",
+      features: product.features?.join("\n") || "",
     });
 
     setSelectedImage(null);
@@ -299,6 +320,7 @@ export default function AdminDashboard() {
         </div>
 
         <button
+          type="button"
           onClick={logout}
           className="rounded-lg bg-red-600 px-5 py-2 text-white hover:bg-red-700"
         >
@@ -405,12 +427,6 @@ export default function AdminDashboard() {
                 Selected: {selectedImage.name}
               </p>
             )}
-
-            {!selectedImage && form.image && (
-              <p className="mt-2 text-sm text-gray-600">
-                An existing image URL is saved for this product.
-              </p>
-            )}
           </div>
 
           <textarea
@@ -422,6 +438,27 @@ export default function AdminDashboard() {
             rows={4}
             className="rounded-lg border p-3 text-gray-900 md:col-span-2"
           />
+
+          <div className="md:col-span-2">
+            <label className="mb-2 block font-semibold text-gray-800">
+              Main Features
+            </label>
+
+            <textarea
+              name="features"
+              placeholder={
+                "Enter one feature per line\nAdjustable height\nFoldable design\nAnti-slip support"
+              }
+              value={form.features}
+              onChange={handleChange}
+              rows={5}
+              className="w-full rounded-lg border p-3 text-gray-900"
+            />
+
+            <p className="mt-1 text-sm text-gray-500">
+              Enter each product feature on a separate line.
+            </p>
+          </div>
 
           <div className="flex flex-wrap gap-3 md:col-span-2">
             <button
@@ -458,6 +495,7 @@ export default function AdminDashboard() {
           </h2>
 
           <button
+            type="button"
             onClick={fetchProducts}
             className="rounded-lg bg-gray-800 px-4 py-2 text-white hover:bg-gray-700"
           >
@@ -478,6 +516,7 @@ export default function AdminDashboard() {
                   <th className="p-3">Product</th>
                   <th className="p-3">Category</th>
                   <th className="p-3">Price</th>
+                  <th className="p-3">Features</th>
                   <th className="p-3">Actions</th>
                 </tr>
               </thead>
@@ -511,9 +550,16 @@ export default function AdminDashboard() {
                       ₹{product.price}
                     </td>
 
+                    <td className="p-3 text-gray-700">
+                      {product.features?.length
+                        ? product.features.join(", ")
+                        : "Not added"}
+                    </td>
+
                     <td className="p-3">
                       <div className="flex flex-wrap gap-2">
                         <button
+                          type="button"
                           onClick={() => handleEdit(product)}
                           className="rounded bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
                         >
@@ -521,6 +567,7 @@ export default function AdminDashboard() {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => handleDelete(product._id)}
                           className="rounded bg-red-600 px-3 py-2 text-white hover:bg-red-700"
                         >

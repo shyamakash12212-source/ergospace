@@ -14,7 +14,7 @@ const verifyAdmin = require("./middleware/auth");
 
 const app = express();
 
-// CORS configuration
+// CORS
 const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
@@ -35,10 +35,15 @@ app.use(
   })
 );
 
-// Middleware
 app.use(express.json({ limit: "20kb" }));
+console.log("SERVER.JS UPDATED - FEATURES DEBUG");
+app.use((req, res, next) => {
+  console.log("REQUEST:", req.method, req.url);
+  console.log("BODY:", JSON.stringify(req.body));
+  next();
+});
 
-// Multer image upload configuration
+// Image upload
 const storage = multer.memoryStorage();
 
 const upload = multer({
@@ -55,18 +60,19 @@ const upload = multer({
   },
 });
 
-// Home route
+// Home
 app.get("/", (req, res) => {
   res.send("ErgoSpace API is running!");
 });
 
-// Get all products
+// Get products
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find();
     res.status(200).json(products);
   } catch (error) {
     console.error("Get products error:", error.message);
+
     res.status(500).json({
       message: "Unable to load products.",
     });
@@ -132,16 +138,26 @@ app.post("/api/admin/login", async (req, res) => {
     });
   } catch (error) {
     console.error("Admin login error:", error.message);
+
     res.status(500).json({
       message: "Login failed.",
     });
   }
 });
 
-// Add product - Admin only
+// Add product
 app.post("/api/products", verifyAdmin, async (req, res) => {
   try {
-    const { name, category, price, description, image } = req.body;
+    const {
+      name,
+      category,
+      price,
+      description,
+      image,
+      features,
+    } = req.body;
+
+    console.log("Received features:", features);
 
     if (
       typeof name !== "string" ||
@@ -156,6 +172,46 @@ app.post("/api/products", verifyAdmin, async (req, res) => {
       });
     }
 
+    if (
+      features !== undefined &&
+      (!Array.isArray(features) ||
+        !features.every((feature) => typeof feature === "string"))
+    ) {
+      return res.status(400).json({
+        message: "Features must be an array of strings.",
+      });
+    }
+const mongoose = require("mongoose");
+
+const productSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+  price: {
+    type: Number,
+    required: true,
+  },
+  category: {
+    type: String,
+    required: true,
+  },
+  image: {
+    type: String,
+    default: "",
+  },
+  features: {
+    type: [String],
+    default: [],
+  },
+});
+
+console.log("BODY FEATURES:", req.body.features);
+console.log("MODEL FEATURES PATH:", Product.schema.path("features"));
     const product = await Product.create({
       name: name.trim(),
       category: category.trim(),
@@ -168,6 +224,9 @@ app.post("/api/products", verifyAdmin, async (req, res) => {
         typeof image === "string"
           ? image.trim()
           : "",
+      features: Array.isArray(features)
+        ? features.map((feature) => feature.trim()).filter(Boolean)
+        : [],
     });
 
     res.status(201).json({
@@ -176,13 +235,14 @@ app.post("/api/products", verifyAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Add product error:", error.message);
+
     res.status(500).json({
       message: "Unable to add product.",
     });
   }
 });
 
-// Upload product image - Admin only
+// Upload image to Cloudinary
 app.post(
   "/api/upload",
   verifyAdmin,
@@ -219,6 +279,7 @@ app.post(
       });
     } catch (error) {
       console.error("Image upload error:", error.message);
+
       res.status(500).json({
         message: "Unable to upload image.",
       });
@@ -226,7 +287,7 @@ app.post(
   }
 );
 
-// Update product - Admin only
+// Update product
 app.put("/api/products/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -238,12 +299,14 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
     }
 
     const updates = {};
+
     const allowedFields = [
       "name",
       "category",
       "price",
       "description",
       "image",
+      "features",
     ];
 
     for (const field of allowedFields) {
@@ -280,6 +343,18 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
       });
     }
 
+    if (
+      updates.features !== undefined &&
+      (!Array.isArray(updates.features) ||
+        !updates.features.every(
+          (feature) => typeof feature === "string"
+        ))
+    ) {
+      return res.status(400).json({
+        message: "Features must be an array of strings.",
+      });
+    }
+
     ["name", "category", "description", "image"].forEach(
       (field) => {
         if (typeof updates[field] === "string") {
@@ -288,11 +363,17 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
       }
     );
 
+    if (Array.isArray(updates.features)) {
+      updates.features = updates.features
+        .map((feature) => feature.trim())
+        .filter(Boolean);
+    }
+
     const product = await Product.findByIdAndUpdate(
       id,
       updates,
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       }
     );
@@ -309,13 +390,14 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Update product error:", error.message);
+
     res.status(500).json({
       message: "Unable to update product.",
     });
   }
 });
 
-// Delete product - Admin only
+// Delete product
 app.delete("/api/products/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -339,13 +421,14 @@ app.delete("/api/products/:id", verifyAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error("Delete product error:", error.message);
+
     res.status(500).json({
       message: "Unable to delete product.",
     });
   }
 });
 
-// Handle upload and other middleware errors
+// Error handling
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
     return res.status(400).json({
@@ -378,16 +461,10 @@ mongoose
     console.log("MongoDB Connected Successfully!");
 
     app.listen(PORT, () => {
-      console.log(
-        `ErgoSpace backend running on port ${PORT}`
-      );
+      console.log(`ErgoSpace backend running on port ${PORT}`);
     });
   })
   .catch((error) => {
-    console.error(
-      "MongoDB Connection Error:",
-      error.message
-    );
-
+    console.error("MongoDB Connection Error:", error.message);
     process.exit(1);
   });
