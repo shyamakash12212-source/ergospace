@@ -7,7 +7,7 @@ import {
   type ChangeEvent,
 } from "react";
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = "https://ergospace-backend.onrender.com";
 const API_URL = `${API_BASE}/api/products`;
 
 interface Product {
