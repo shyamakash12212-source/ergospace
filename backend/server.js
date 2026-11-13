@@ -14,7 +14,7 @@ const verifyAdmin = require("./middleware/auth");
 
 const app = express();
 
-// CORS
+// CORS configuration
 const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
@@ -36,14 +36,8 @@ app.use(
 );
 
 app.use(express.json({ limit: "20kb" }));
-console.log("SERVER.JS UPDATED - FEATURES DEBUG");
-app.use((req, res, next) => {
-  console.log("REQUEST:", req.method, req.url);
-  console.log("BODY:", JSON.stringify(req.body));
-  next();
-});
 
-// Image upload
+// Image upload configuration
 const storage = multer.memoryStorage();
 
 const upload = multer({
@@ -60,15 +54,16 @@ const upload = multer({
   },
 });
 
-// Home
+// Home route
 app.get("/", (req, res) => {
   res.send("ErgoSpace API is running!");
 });
 
-// Get products
+// Get all products
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find();
+
     res.status(200).json(products);
   } catch (error) {
     console.error("Get products error:", error.message);
@@ -157,18 +152,19 @@ app.post("/api/products", verifyAdmin, async (req, res) => {
       features,
     } = req.body;
 
-    console.log("Received features:", features);
-
     if (
       typeof name !== "string" ||
       !name.trim() ||
       typeof category !== "string" ||
       !category.trim() ||
+      typeof description !== "string" ||
+      !description.trim() ||
+      typeof price !== "number" ||
       !Number.isFinite(price) ||
       price < 0
     ) {
       return res.status(400).json({
-        message: "Valid name, category and price are required.",
+        message: "Valid name, category, description and price are required.",
       });
     }
 
@@ -181,49 +177,13 @@ app.post("/api/products", verifyAdmin, async (req, res) => {
         message: "Features must be an array of strings.",
       });
     }
-const mongoose = require("mongoose");
 
-const productSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  price: {
-    type: Number,
-    required: true,
-  },
-  category: {
-    type: String,
-    required: true,
-  },
-  image: {
-    type: String,
-    default: "",
-  },
-  features: {
-    type: [String],
-    default: [],
-  },
-});
-
-console.log("BODY FEATURES:", req.body.features);
-console.log("MODEL FEATURES PATH:", Product.schema.path("features"));
     const product = await Product.create({
       name: name.trim(),
       category: category.trim(),
       price,
-      description:
-        typeof description === "string"
-          ? description.trim()
-          : "",
-      image:
-        typeof image === "string"
-          ? image.trim()
-          : "",
+      description: description.trim(),
+      image: typeof image === "string" ? image.trim() : "",
       features: Array.isArray(features)
         ? features.map((feature) => feature.trim()).filter(Boolean)
         : [],
@@ -315,6 +275,12 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
       }
     }
 
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        message: "No valid fields provided for update.",
+      });
+    }
+
     if (
       updates.name !== undefined &&
       (typeof updates.name !== "string" || !updates.name.trim())
@@ -335,8 +301,20 @@ app.put("/api/products/:id", verifyAdmin, async (req, res) => {
     }
 
     if (
+      updates.description !== undefined &&
+      (typeof updates.description !== "string" ||
+        !updates.description.trim())
+    ) {
+      return res.status(400).json({
+        message: "Product description is invalid.",
+      });
+    }
+
+    if (
       updates.price !== undefined &&
-      (!Number.isFinite(updates.price) || updates.price < 0)
+      (typeof updates.price !== "number" ||
+        !Number.isFinite(updates.price) ||
+        updates.price < 0)
     ) {
       return res.status(400).json({
         message: "Product price is invalid.",
@@ -428,7 +406,7 @@ app.delete("/api/products/:id", verifyAdmin, async (req, res) => {
   }
 });
 
-// Error handling
+// Error handling middleware
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
     return res.status(400).json({
@@ -445,6 +423,12 @@ app.use((error, req, res, next) => {
     });
   }
 
+  if (error.message === "Not allowed by CORS") {
+    return res.status(403).json({
+      message: "Origin not allowed.",
+    });
+  }
+
   console.error("Server error:", error.message);
 
   res.status(500).json({
@@ -454,6 +438,11 @@ app.use((error, req, res, next) => {
 
 // MongoDB connection and server start
 const PORT = process.env.PORT || 5001;
+
+if (!process.env.MONGO_URI) {
+  console.error("MONGO_URI is missing from environment variables.");
+  process.exit(1);
+}
 
 mongoose
   .connect(process.env.MONGO_URI)
@@ -466,5 +455,14 @@ mongoose
   })
   .catch((error) => {
     console.error("MongoDB Connection Error:", error.message);
+    console.error("Error Name:", error.name);
+console.error("Error Code:", error.code);
+console.error("Full Error:", error);
+if (error.reason?.servers) {
+  for (const [address, server] of error.reason.servers) {
+    console.error("Server:", address);
+    console.error("Server Error:", server.error?.message || "No details");
+  }
+}
     process.exit(1);
   });
