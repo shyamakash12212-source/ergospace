@@ -9,6 +9,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const Product = require("./models/Product");
+const Order = require("./models/Order");
 const Admin = require("./models/Admin");
 const verifyAdmin = require("./middleware/auth");
 
@@ -72,6 +73,91 @@ app.get("/api/products", async (req, res) => {
       message: "Unable to load products.",
     });
   }
+});
+// Create a new order
+app.post("/api/orders", async (req, res) => {
+try {
+const { customer, items } = req.body;
+
+// Validate customer details
+if (
+  !customer ||
+  typeof customer.name !== "string" ||
+  !customer.name.trim() ||
+  typeof customer.phone !== "string" ||
+  !/^\d{10}$/.test(customer.phone.trim()) ||
+  typeof customer.address !== "string" ||
+  !customer.address.trim()
+) {
+  return res.status(400).json({
+    message: "Please provide valid customer details.",
+  });
+}
+
+// Validate cart items
+if (!Array.isArray(items) || items.length === 0) {
+  return res.status(400).json({
+    message: "Your cart is empty.",
+  });
+}
+
+const orderItems = [];
+let totalAmount = 0;
+
+for (const item of items) {
+  if (
+    !item ||
+    !mongoose.Types.ObjectId.isValid(item.productId) ||
+    !Number.isInteger(item.quantity) ||
+    item.quantity < 1 ||
+    item.quantity > 100
+  ) {
+    return res.status(400).json({
+      message: "Invalid product or quantity.",
+    });
+  }
+
+  const product = await Product.findById(item.productId);
+
+  if (!product) {
+    return res.status(404).json({
+      message: "One of the selected products was not found.",
+    });
+  }
+
+  orderItems.push({
+    product: product._id,
+    name: product.name,
+    price: product.price,
+    quantity: item.quantity,
+  });
+
+  totalAmount += product.price * item.quantity;
+}
+
+const order = await Order.create({
+  customer: {
+    name: customer.name.trim(),
+    phone: customer.phone.trim(),
+    address: customer.address.trim(),
+  },
+  items: orderItems,
+  totalAmount,
+});
+
+return res.status(201).json({
+  message: "Order placed successfully.",
+  order,
+});
+
+} catch (error) {
+console.error("Create order error:", error.message);
+
+return res.status(500).json({
+  message: "Unable to place your order.",
+});
+
+}
 });
 
 // Admin login
