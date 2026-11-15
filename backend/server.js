@@ -159,7 +159,83 @@ return res.status(500).json({
 
 }
 });
+// Get all orders (Admin only)
+app.get("/api/admin/orders", verifyAdmin, async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .sort({ createdAt: -1 })
+      .lean();
 
+    res.status(200).json({
+      count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("Fetch orders error:", error.message);
+
+    res.status(500).json({
+      message: "Unable to fetch orders.",
+    });
+  }
+});
+
+// Update order status (Admin only)
+app.patch(
+  "/api/admin/orders/:id/status",
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const allowedStatuses = [
+        "Pending",
+        "Confirmed",
+        "Shipped",
+        "Delivered",
+        "Cancelled",
+      ];
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          message: "Invalid order ID.",
+        });
+      }
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          message: "Invalid order status.",
+        });
+      }
+
+      const order = await Order.findByIdAndUpdate(
+        id,
+        { status },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        }
+      );
+
+      if (!order) {
+        return res.status(404).json({
+          message: "Order not found.",
+        });
+      }
+
+      res.status(200).json({
+        message: "Order status updated successfully.",
+        order,
+      });
+    } catch (error) {
+      console.error("Update order status error:", error.message);
+
+      res.status(500).json({
+        message: "Unable to update order status.",
+      });
+    }
+  }
+);
 // Admin login
 app.post("/api/admin/login", async (req, res) => {
   try {
