@@ -16,7 +16,7 @@ setError("");
 
 try {
   const response = await fetch(
-    "https://ergospace-backend.onrender.com/api/admin/login",
+    "http://localhost:5001/api/admin/login",
     {
       method: "POST",
       headers: {
@@ -41,8 +41,11 @@ try {
 
   sessionStorage.setItem("adminToken", data.token);
 
-  window.location.href = "/admin/dashboard";
-} catch (err) {
+const params = new URLSearchParams(window.location.search);
+const next = params.get("next");
+
+window.location.href =
+  next === "/admin/orders" ? "/admin/orders" : "/admin/dashboard";} catch (err) {
   setError(
     err instanceof Error
       ? err.message
