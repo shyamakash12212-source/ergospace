@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = "https://ergospace-backend.onrender.com";
 
 const STATUSES = [
   "Pending",
