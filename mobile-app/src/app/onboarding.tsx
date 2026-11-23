@@ -1,37 +1,45 @@
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ImageBackground,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from 'react-native';
 
 const slides = [
   {
     number: '01',
-    emoji: '🪑',
+    tag: 'DESIGNED FOR COMFORT',
     title: 'Build Your Perfect Workspace',
     description:
       'Discover ergonomic desk accessories designed to make your workspace more comfortable.',
+    image:
+      'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1000&auto=format&fit=crop',
   },
   {
     number: '02',
-    emoji: '💻',
+    tag: 'WORK SMARTER',
     title: 'Work Smarter Every Day',
     description:
       'Explore products that support better posture, comfort and productivity.',
+    image:
+      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1000&auto=format&fit=crop',
   },
   {
     number: '03',
-    emoji: '✨',
+    tag: 'YOUR COMFORT MATTERS',
     title: 'Your Comfort Starts Here',
     description:
       'Find the right accessories and create a workspace that works for you.',
+    image:
+      'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=1000&auto=format&fit=crop',
   },
 ];
 
@@ -39,11 +47,18 @@ export default function OnboardingScreen() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+
+  const slide = slides[currentSlide];
+  const isLastSlide = currentSlide === slides.length - 1;
 
   const finishOnboarding = async () => {
     try {
       setLoading(true);
-      await AsyncStorage.setItem('ergospace_onboarding_completed', 'true');
+      await AsyncStorage.setItem(
+        'ergospace_onboarding_completed',
+        'true'
+      );
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Unable to save onboarding:', error);
@@ -51,8 +66,7 @@ export default function OnboardingScreen() {
     }
   };
 
-  const isLastSlide = currentSlide === slides.length - 1;
-  const slide = slides[currentSlide];
+  const imageHeight = Math.min(width * 0.85, height * 0.36);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -60,26 +74,54 @@ export default function OnboardingScreen() {
 
       <View style={styles.header}>
         <Text style={styles.logo}>ErgoSpace</Text>
-        <TouchableOpacity onPress={finishOnboarding}>
+
+        <TouchableOpacity
+          onPress={finishOnboarding}
+          disabled={loading}
+        >
           <Text style={styles.skip}>Skip</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
-        <View style={styles.illustration}>
-          <Text style={styles.emoji}>{slide.emoji}</Text>
-          <Text style={styles.slideNumber}>{slide.number}</Text>
-        </View>
+        <ImageBackground
+          source={{ uri: slide.image }}
+          style={[
+            styles.imageCard,
+            {
+              width: width - 50,
+              height: imageHeight,
+            },
+          ]}
+          imageStyle={styles.imageStyle}
+          resizeMode="cover"
+        >
+          <View style={styles.imageOverlay} />
 
-        <Text style={styles.title}>{slide.title}</Text>
-        <Text style={styles.description}>{slide.description}</Text>
+          <View style={styles.imageTopLabel}>
+            <Text style={styles.imageLabel}>ERGOSPACE</Text>
+          </View>
+
+          <View style={styles.imageBottom}>
+            <Text style={styles.imageTag}>{slide.tag}</Text>
+            <Text style={styles.slideNumber}>{slide.number}</Text>
+          </View>
+        </ImageBackground>
+
+        <View style={styles.textSection}>
+          <Text style={styles.title}>{slide.title}</Text>
+
+          <Text style={styles.description}>
+            {slide.description}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.footer}>
         <View style={styles.dots}>
-          {slides.map((_, index) => (
+          {slides.map((item, index) => (
             <View
-              key={index}
+              key={item.number}
               style={[
                 styles.dot,
                 currentSlide === index && styles.activeDot,
@@ -89,7 +131,7 @@ export default function OnboardingScreen() {
         </View>
 
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, loading && styles.disabledButton]}
           disabled={loading}
           onPress={() => {
             if (isLastSlide) {
@@ -99,10 +141,18 @@ export default function OnboardingScreen() {
             }
           }}
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Please wait...' : isLastSlide ? 'Get Started' : 'Next'}
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buttonText}>
+              {isLastSlide ? 'Get Started' : 'Next'}
+            </Text>
+          )}
         </TouchableOpacity>
+
+        <Text style={styles.footerText}>
+          {currentSlide + 1} OF {slides.length}
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -118,85 +168,126 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 15,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   logo: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#0F766E',
+    fontSize: 25,
+    fontWeight: '900',
+    color: '#087F72',
+    letterSpacing: -0.8,
   },
   skip: {
     fontSize: 15,
+    fontWeight: '700',
     color: '#64748B',
-    fontWeight: '600',
+    padding: 8,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  illustration: {
-    width: 250,
-    height: 250,
-    borderRadius: 35,
+  imageCard: {
+    borderRadius: 28,
+    overflow: 'hidden',
+    justifyContent: 'space-between',
     backgroundColor: '#DCEFEB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 45,
   },
-  emoji: {
-    fontSize: 105,
+  imageStyle: {
+    borderRadius: 28,
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(10, 35, 32, 0.20)',
+  },
+  imageTopLabel: {
+    padding: 20,
+  },
+  imageLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  imageBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  imageTag: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
   slideNumber: {
-    position: 'absolute',
-    bottom: 18,
-    right: 22,
-    color: '#0F766E',
-    fontWeight: '800',
-    fontSize: 15,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  textSection: {
+    alignItems: 'center',
+    marginTop: 38,
+    paddingHorizontal: 5,
   },
   title: {
-    fontSize: 27,
-    fontWeight: '800',
-    color: '#173B39',
+    fontSize: 29,
+    lineHeight: 37,
+    fontWeight: '900',
+    color: '#123F3B',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   description: {
     fontSize: 16,
-    lineHeight: 25,
+    lineHeight: 26,
     color: '#64748B',
     textAlign: 'center',
-    paddingHorizontal: 8,
   },
   footer: {
-    paddingBottom: 25,
+    paddingBottom: 18,
   },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 25,
-    gap: 8,
+    alignItems: 'center',
+    marginBottom: 28,
+    gap: 9,
   },
   dot: {
-    width: 9,
-    height: 9,
+    width: 10,
+    height: 10,
     borderRadius: 10,
-    backgroundColor: '#CBD5D1',
+    backgroundColor: '#C9D8D5',
   },
   activeDot: {
-    width: 27,
-    backgroundColor: '#0F766E',
+    width: 30,
+    backgroundColor: '#087F72',
   },
   button: {
-    backgroundColor: '#0F766E',
-    paddingVertical: 17,
-    borderRadius: 15,
+    backgroundColor: '#087F72',
+    paddingVertical: 19,
+    borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 60,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  footerText: {
+    textAlign: 'center',
+    marginTop: 12,
+    color: '#94A3A0',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2,
   },
 });
