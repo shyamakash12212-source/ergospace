@@ -11,6 +11,8 @@ const jwt = require("jsonwebtoken");
 const Product = require("./models/Product");
 const Order = require("./models/Order");
 const Admin = require("./models/Admin");
+const Customer = require("./models/Customer");
+const verifyCustomer = require("./middleware/customerAuth");
 const verifyAdmin = require("./middleware/auth");
 
 const app = express();
@@ -159,6 +161,113 @@ return res.status(500).json({
 
 }
 });
+
+// Create order for logged-in mobile customer
+app.post("/api/customer/orders", verifyCustomer, async (req, res) => {
+  try {
+    const { address, items } = req.body;
+
+    if (typeof address !== "string" || !address.trim()) {
+      return res.status(400).json({
+        message: "Please provide a valid delivery address.",
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "Your cart is empty.",
+      });
+    }
+
+    const customer = await Customer.findById(req.customer.id);
+
+    if (!customer) {
+      return res.status(404).json({
+        message: "Customer account not found.",
+      });
+    }
+
+    const orderItems = [];
+    let totalAmount = 0;
+
+    for (const item of items) {
+      if (
+        !item ||
+        !mongoose.Types.ObjectId.isValid(item.productId) ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1 ||
+        item.quantity > 100
+      ) {
+        return res.status(400).json({
+          message: "Invalid product or quantity.",
+        });
+      }
+
+      const product = await Product.findById(item.productId);
+
+      if (!product) {
+        return res.status(404).json({
+          message: "One of the selected products was not found.",
+        });
+      }
+
+      orderItems.push({
+        product: product._id,
+        name: product.name,
+        price: product.price,
+        quantity: item.quantity,
+      });
+
+      totalAmount += product.price * item.quantity;
+    }
+
+    const order = await Order.create({
+      customerId: customer._id,
+      customer: {
+        name: customer.name,
+        phone: customer.phone,
+        address: address.trim(),
+      },
+      items: orderItems,
+      totalAmount,
+    });
+
+    return res.status(201).json({
+      message: "Order placed successfully.",
+      order,
+    });
+  } catch (error) {
+    console.error("Customer order error:", error.message);
+
+    return res.status(500).json({
+      message: "Unable to place your order.",
+    });
+  }
+});
+
+
+// Get logged-in customer's order history
+app.get("/api/customer/orders", verifyCustomer, async (req, res) => {
+  try {
+    const orders = await Order.find({
+      customerId: req.customer.id,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("Customer order history error:", error.message);
+
+    return res.status(500).json({
+      message: "Unable to fetch your order history.",
+    });
+  }
+});
+
 // Get all orders (Admin only)
 app.get("/api/admin/orders", verifyAdmin, async (req, res) => {
   try {
@@ -236,6 +345,136 @@ app.patch(
     }
   }
 );
+
+// Customer signup
+app.post("/api/customer/signup", async (req, res) => {
+  try {
+    const { name, phone, password } = req.body;
+
+    if (
+      typeof name !== "string" ||
+      typeof phone !== "string" ||
+      typeof password !== "string" ||
+      name.trim().length < 2 ||
+      name.trim().length > 80 ||
+      !/^\d{10}$/.test(phone.trim()) ||
+      password.length < 8
+    ) {
+      return res.status(400).json({
+        message: "Enter a valid name, 10-digit phone number and password (minimum 8 characters).",
+      });
+    }
+
+    const existingCustomer = await Customer.findOne({
+      phone: phone.trim(),
+    });
+
+    if (existingCustomer) {
+      return res.status(409).json({
+        message: "This phone number is already registered.",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const customer = await Customer.create({
+      name: name.trim(),
+      phone: phone.trim(),
+      password: hashedPassword,
+    });
+
+    const token = jwt.sign(
+      {
+        id: customer._id.toString(),
+        role: "customer",
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(201).json({
+      message: "Customer registered successfully.",
+      token,
+      customer: {
+        id: customer._id,
+        name: customer.name,
+        phone: customer.phone,
+      },
+    });
+  } catch (error) {
+    console.error("Customer signup error:", error.message);
+
+    return res.status(500).json({
+      message: "Unable to register customer.",
+    });
+  }
+});
+
+
+// Customer login
+app.post("/api/customer/login", async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (
+      typeof phone !== "string" ||
+      typeof password !== "string" ||
+      !/^\d{10}$/.test(phone.trim()) ||
+      !password
+    ) {
+      return res.status(400).json({
+        message: "Enter a valid phone number and password.",
+      });
+    }
+
+    const customer = await Customer.findOne({
+      phone: phone.trim(),
+    }).select("+password");
+
+    if (!customer) {
+      return res.status(401).json({
+        message: "Invalid phone number or password.",
+      });
+    }
+
+    const passwordMatch = await bcrypt.compare(
+      password,
+      customer.password
+    );
+
+    if (!passwordMatch) {
+      return res.status(401).json({
+        message: "Invalid phone number or password.",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: customer._id.toString(),
+        role: "customer",
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(200).json({
+      message: "Customer login successful.",
+      token,
+      customer: {
+        id: customer._id,
+        name: customer.name,
+        phone: customer.phone,
+      },
+    });
+  } catch (error) {
+    console.error("Customer login error:", error.message);
+
+    return res.status(500).json({
+      message: "Unable to login.",
+    });
+  }
+});
+
 // Admin login
 app.post("/api/admin/login", async (req, res) => {
   try {
