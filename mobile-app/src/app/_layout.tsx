@@ -1,3 +1,4 @@
+
 import { Stack } from 'expo-router';
 import { CartProvider } from '../context/CartContext';
 
@@ -13,6 +14,22 @@ export default function RootLayout() {
         <Stack.Screen
           name="product/[id]"
           options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="login"
+          options={{
+            title: 'Customer Login',
+            headerBackTitle: 'Back',
+          }}
+        />
+
+        <Stack.Screen
+          name="signup"
+          options={{
+            title: 'Create Account',
+            headerBackTitle: 'Back',
+          }}
         />
       </Stack>
     </CartProvider>

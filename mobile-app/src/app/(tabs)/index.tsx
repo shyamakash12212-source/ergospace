@@ -1,3 +1,4 @@
+
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -29,8 +30,6 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   Stands: ['laptop accessories'],
   'Wrist Support': ['wrist support', 'wrist rest', 'mouse pad'],
 };
-  
- 
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -77,14 +76,14 @@ export default function HomeScreen() {
     const categoryKeywords = CATEGORY_KEYWORDS[selectedCategory] ?? [];
 
     const matchesCategory =
-  selectedCategory === 'All' ||
-  (selectedCategory === 'Wrist Support'
-    ? `${product.name} ${product.description ?? ''}`
-        .toLowerCase()
-        .includes('wrist')
-    : categoryKeywords.some((keyword) =>
-        productCategory.includes(keyword)
-      ));
+      selectedCategory === 'All' ||
+      (selectedCategory === 'Wrist Support'
+        ? `${product.name} ${product.description ?? ''}`
+            .toLowerCase()
+            .includes('wrist')
+        : categoryKeywords.some((keyword) =>
+            productCategory.includes(keyword)
+          ));
 
     return matchesSearch && matchesCategory;
   });
@@ -106,26 +105,35 @@ export default function HomeScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.logo}>ErgoSpace</Text>
+<View style={styles.header}>
+  <Text style={styles.logo}>ErgoSpace</Text>
 
-          <TouchableOpacity
-            style={styles.cartButton}
-            activeOpacity={0.8}
-            onPress={openCart}
-          >
-            <Text style={styles.cartIcon}>🛒</Text>
+  <View style={styles.headerActions}>
+    <TouchableOpacity
+      style={styles.accountButton}
+      activeOpacity={0.8}
+      onPress={() => router.push('/account')}
+    >
+      <Text style={styles.accountButtonText}>Account</Text>
+    </TouchableOpacity>
 
-            {cartCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>
-                  {cartCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+    <TouchableOpacity
+      style={styles.cartButton}
+      activeOpacity={0.8}
+      onPress={openCart}
+    >
+      <Text style={styles.cartIcon}>🛒</Text>
+
+      {cartCount > 0 && (
+        <View style={styles.cartBadge}>
+          <Text style={styles.cartBadgeText}>
+            {cartCount}
+          </Text>
         </View>
-
+      )}
+    </TouchableOpacity>
+  </View>
+</View>
         {/* Search */}
         <View style={styles.searchContainer}>
           <Text style={styles.searchIcon}>🔍</Text>
@@ -156,10 +164,8 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.heroButton}
-            onPress={() => {
-              setSelectedCategory('All');
-              setSearch('');
-            }}
+            activeOpacity={0.85}
+            onPress={() => router.navigate('/explore')}
           >
             <Text style={styles.heroButtonText}>
               Explore Products →
@@ -653,4 +659,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 18,
   },
+  headerActions: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+},
+
+accountButton: {
+  backgroundColor: '#0F766E',
+  paddingHorizontal: 16,
+  paddingVertical: 11,
+  borderRadius: 10,
+},
+
+accountButtonText: {
+  color: '#FFFFFF',
+  fontSize: 13,
+  fontWeight: '700',
+},
 });
