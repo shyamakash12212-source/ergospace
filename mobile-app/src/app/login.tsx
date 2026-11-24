@@ -1,14 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-
+import { Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { customerLogin } from '../services/api';
 
@@ -18,6 +18,7 @@ export default function LoginScreen() {
 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -77,13 +78,32 @@ export default function LoginScreen() {
       />
 
       <Text style={styles.label}>Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+
+<View style={styles.passwordContainer}>
+  <TextInput
+    style={styles.passwordInput}
+    placeholder="Enter your password"
+    secureTextEntry={!showPassword}
+    value={password}
+    onChangeText={setPassword}
+    autoCapitalize="none"
+    autoCorrect={false}
+    returnKeyType="done"
+    blurOnSubmit={false}
+  />
+
+  <TouchableOpacity
+  style={styles.eyeButton}
+  onPress={() => setShowPassword((prev) => !prev)}
+  activeOpacity={0.7}
+>
+  {showPassword ? (
+    <Eye size={22} color="#777777" />
+  ) : (
+    <EyeOff size={22} color="#777777" />
+  )}
+</TouchableOpacity>
+</View>
 
       <TouchableOpacity
         style={styles.button}
@@ -152,6 +172,30 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontSize: 15,
   },
+  passwordContainer: {
+  height: 52,
+  borderWidth: 1,
+  borderColor: '#DDDDDD',
+  borderRadius: 10,
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginBottom: 20,
+},
+
+passwordInput: {
+  flex: 1,
+  height: '100%',
+  paddingHorizontal: 15,
+  fontSize: 15,
+},
+
+eyeButton: {
+  paddingHorizontal: 15,
+  height: '100%',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+
   button: {
     height: 52,
     backgroundColor: '#087F8C',
