@@ -76,11 +76,89 @@ app.get("/api/products", async (req, res) => {
     });
   }
 });
- // Block guest order creation
-app.post("/api/orders", (req, res) => {
-  return res.status(401).json({
-    message: "Please login or create an account to place an order.",
-  });
+ // Create website order (guest checkout)
+app.post("/api/orders", async (req, res) => {
+  try {
+    const { customer, items } = req.body;
+
+    // Validate customer details
+    if (
+      !customer ||
+      !customer.name?.trim() ||
+      !customer.phone?.trim() ||
+      !customer.address?.trim()
+    ) {
+      return res.status(400).json({
+        message: "Please provide valid customer and delivery details.",
+      });
+    }
+
+    // Validate cart
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "Your cart is empty.",
+      });
+    }
+
+    const orderItems = [];
+    let totalAmount = 0;
+
+    // Verify products and calculate total using database prices
+    for (const item of items) {
+      const productId = item.productId || item._id;
+
+      if (
+        !mongoose.Types.ObjectId.isValid(productId) ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1 ||
+        item.quantity > 100
+      ) {
+        return res.status(400).json({
+          message: "Invalid product or quantity.",
+        });
+      }
+
+      const product = await Product.findById(productId);
+
+      if (!product) {
+        return res.status(404).json({
+          message: "One of the selected products was not found.",
+        });
+      }
+
+      orderItems.push({
+        product: product._id,
+        name: product.name,
+        price: product.price,
+        quantity: item.quantity,
+      });
+
+      totalAmount += product.price * item.quantity;
+    }
+
+    // Save order to MongoDB
+    const order = await Order.create({
+      customerId: null,
+      customer: {
+        name: customer.name.trim(),
+        phone: customer.phone.trim(),
+        address: customer.address.trim(),
+      },
+      items: orderItems,
+      totalAmount,
+    });
+
+    return res.status(201).json({
+      message: "Order placed successfully.",
+      order,
+    });
+  } catch (error) {
+    console.error("Website order error:", error.message);
+
+    return res.status(500).json({
+      message: "Unable to place your order.",
+    });
+  }
 });
 
 // Create order for logged-in mobile customer

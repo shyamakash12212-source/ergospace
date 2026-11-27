@@ -50,7 +50,7 @@ const [upiId, setUpiId] = useState("");
     });
   };
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+ const handlePlaceOrder = async (e: React.FormEvent) => {
   e.preventDefault();
 
   if (cart.length === 0) {
@@ -60,45 +60,93 @@ const [upiId, setUpiId] = useState("");
 
   setLoading(true);
 
- const order = {
-  customer,
-  items: cart,
-  subtotal,
-  shipping,
-  total,
-  paymentMethod,
-  orderDate: new Date().toISOString(),
+  try {
+    const fullAddress = [
+      customer.address,
+      customer.city,
+      customer.state,
+      customer.pincode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    // Send order to MongoDB backend
+    const response = await fetch(
+      "https://ergospace-backend.onrender.com/api/orders",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customer: {
+            name: customer.name,
+            phone: customer.phone,
+            address: fullAddress,
+          },
+          items: cart.map((item) => ({
+            productId: item._id,
+            quantity: item.quantity,
+          })),
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Unable to place order.");
+    }
+
+    // Save local order history after backend success
+    const order = {
+      ...data.order,
+      customer,
+      items: cart,
+      subtotal,
+      shipping,
+      total,
+      paymentMethod,
+      orderDate: new Date().toISOString(),
+      backendOrderId: data.order._id,
+    };
+
+    localStorage.setItem(
+      "ergospace-last-order",
+      JSON.stringify(order)
+    );
+
+    const savedOrders = localStorage.getItem("ergospace-orders");
+    const previousOrders = savedOrders
+      ? JSON.parse(savedOrders)
+      : [];
+
+    localStorage.setItem(
+      "ergospace-orders",
+      JSON.stringify([order, ...previousOrders])
+    );
+
+    // Clear cart only after successful database save
+    localStorage.removeItem("ergospace-cart");
+    setCart([]);
+
+    window.dispatchEvent(new Event("cartUpdated"));
+
+    // Redirect to success page
+    window.location.href = "/order-success";
+  } catch (error) {
+    console.error("Order placement error:", error);
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Unable to place order. Please try again."
+    );
+
+    setLoading(false);
+  }
 };
 
-  // Save latest order
-  localStorage.setItem(
-    "ergospace-last-order",
-    JSON.stringify(order)
-  );
-
-  // Save order history
-  const savedOrders = localStorage.getItem("ergospace-orders");
-  const previousOrders = savedOrders ? JSON.parse(savedOrders) : [];
-
-  const updatedOrders = [order, ...previousOrders];
-
-  localStorage.setItem(
-    "ergospace-orders",
-    JSON.stringify(updatedOrders)
-  );
-
-  // Clear cart from localStorage
-  localStorage.removeItem("ergospace-cart");
-
-  // Clear cart state
-  setCart([]);
-
-  // Update cart badge
-  window.dispatchEvent(new Event("cartUpdated"));
-
-  // Redirect to success page
-  window.location.href = "/order-success";
-};
 
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#26332d]">
