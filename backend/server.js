@@ -7,6 +7,7 @@ const multer = require("multer");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
 const Product = require("./models/Product");
 const Order = require("./models/Order");
@@ -34,7 +35,11 @@ app.use(
       return callback(new Error("Not allowed by CORS"));
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+   allowedHeaders: [
+  "Content-Type",
+  "Authorization",
+  "X-Order-Tracking-Token",
+],
   })
 );
 
@@ -136,9 +141,18 @@ app.post("/api/orders", async (req, res) => {
       totalAmount += product.price * item.quantity;
     }
 
+       // Generate secure guest order tracking token
+    const trackingToken = crypto.randomBytes(32).toString("hex");
+
+    const trackingTokenHash = crypto
+      .createHash("sha256")
+      .update(trackingToken)
+      .digest("hex");
+
     // Save order to MongoDB
     const order = await Order.create({
       customerId: null,
+      trackingTokenHash,
       customer: {
         name: customer.name.trim(),
         phone: customer.phone.trim(),
@@ -151,6 +165,7 @@ app.post("/api/orders", async (req, res) => {
     return res.status(201).json({
       message: "Order placed successfully.",
       order,
+      trackingToken,
     });
   } catch (error) {
     console.error("Website order error:", error.message);
@@ -160,7 +175,50 @@ app.post("/api/orders", async (req, res) => {
     });
   }
 });
+// Get guest order status using tracking token
+app.get("/api/orders/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const token = req.get("X-Order-Tracking-Token");
 
+    if (
+      !mongoose.Types.ObjectId.isValid(id) ||
+      typeof token !== "string" ||
+      token.length !== 64
+    ) {
+      return res.status(400).json({
+        message: "Invalid order tracking request.",
+      });
+    }
+
+    const trackingTokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const order = await Order.findOne({
+      _id: id,
+      trackingTokenHash,
+    }).select("status createdAt");
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order tracking information not found.",
+      });
+    }
+
+    return res.status(200).json({
+      status: order.status,
+      createdAt: order.createdAt,
+    });
+  } catch (error) {
+    console.error("Guest order status error:", error.message);
+
+    return res.status(500).json({
+      message: "Unable to fetch order status.",
+    });
+  }
+});
 // Create order for logged-in mobile customer
 app.post("/api/customer/orders", verifyCustomer, async (req, res) => {
   try {

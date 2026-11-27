@@ -28,41 +28,85 @@ type Order = {
   shipping: number;
   total: number;
   orderDate: string;
+  backendOrderId?: string;
+  trackingToken?: string;
+  status?: string;
+  createdAt?: string;
 };
 
 export default function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
 
   useEffect(() => {
-    const savedOrders = localStorage.getItem("ergospace-orders");
+    const loadOrders = async () => {
+      let history: Order[] = [];
 
-    if (savedOrders) {
-      setOrders(JSON.parse(savedOrders));
-    }
+      try {
+        const savedOrders = localStorage.getItem("ergospace-orders");
 
-    // Include the latest order if it hasn't been added to order history
-    const latestOrder = localStorage.getItem("ergospace-last-order");
+        if (savedOrders) {
+          const parsed = JSON.parse(savedOrders);
+          if (Array.isArray(parsed)) history = parsed;
+        }
 
-    if (latestOrder) {
-      const parsedOrder: Order = JSON.parse(latestOrder);
+        // Include latest order if it is not already in history
+        const latestOrder = localStorage.getItem("ergospace-last-order");
 
-      setOrders((previousOrders) => {
-        const exists = previousOrders.some(
-          (order) => order.orderDate === parsedOrder.orderDate
-        );
+        if (latestOrder) {
+          const parsedOrder: Order = JSON.parse(latestOrder);
 
-        if (exists) return previousOrders;
+          const exists = history.some(
+            (order) => order.orderDate === parsedOrder.orderDate
+          );
 
-        const updatedOrders = [parsedOrder, ...previousOrders];
+          if (!exists) {
+            history = [parsedOrder, ...history];
+          }
+        }
+      } catch (error) {
+        console.error("Unable to load saved orders:", error);
+      }
 
-        localStorage.setItem(
-          "ergospace-orders",
-          JSON.stringify(updatedOrders)
-        );
+      setOrders(history);
 
-        return updatedOrders;
-      });
-    }
+      // Fetch current status for guest orders from the backend
+      const updatedOrders = await Promise.all(
+        history.map(async (order) => {
+          if (!order.backendOrderId || !order.trackingToken) {
+            return order;
+          }
+
+          try {
+            const response = await fetch(
+              `https://ergospace-backend.onrender.com/api/orders/${order.backendOrderId}/status`,
+              {
+                headers: {
+                  "X-Order-Tracking-Token": order.trackingToken,
+                },
+              }
+            );
+
+            if (!response.ok) return order;
+
+            const data = await response.json();
+
+            return {
+              ...order,
+              status: data.status,
+              createdAt: data.createdAt,
+            };
+          } catch (error) {
+            console.error("Unable to refresh order status:", error);
+            return order;
+          }
+        })
+      );
+
+      setOrders(updatedOrders);
+      localStorage.setItem("ergospace-orders", JSON.stringify(updatedOrders));
+    };
+
+    loadOrders();
   }, []);
 
   return (
@@ -166,7 +210,7 @@ export default function MyOrdersPage() {
                       </p>
 
                       <span className="inline-block mt-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
-                        Order Placed
+                        {order.status || "Order Placed"}
                       </span>
                     </div>
 

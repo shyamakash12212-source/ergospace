@@ -7,7 +7,11 @@ customerId: {
   ref: "Customer",
   default: null,
 },
-
+trackingTokenHash: {
+  type: String,
+  default: null,
+  select: false,
+},
 
 customer: {
 name: {

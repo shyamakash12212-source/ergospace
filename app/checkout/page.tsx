@@ -109,6 +109,7 @@ const [upiId, setUpiId] = useState("");
       paymentMethod,
       orderDate: new Date().toISOString(),
       backendOrderId: data.order._id,
+      trackingToken: data.trackingToken,
     };
 
     localStorage.setItem(
