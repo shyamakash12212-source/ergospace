@@ -7,6 +7,7 @@ const API_BASE = "https://ergospace-backend.onrender.com";
 const STATUSES = [
   "Pending",
   "Confirmed",
+  "Packed",
   "Shipped",
   "Delivered",
   "Cancelled",

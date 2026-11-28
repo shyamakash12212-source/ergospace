@@ -226,6 +226,92 @@ export default function MyOrdersPage() {
 
                   </div>
 
+                  {/* Order Tracking Timeline */}
+                  <div className="px-6 pt-6 pb-2">
+                    {order.status === "Cancelled" ? (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                        <p className="font-semibold text-red-700">
+                          Order Cancelled
+                        </p>
+                        <p className="text-sm text-red-600 mt-1">
+                          This order has been cancelled.
+                        </p>
+                      </div>
+                    ) : (
+                      (() => {
+                        const stages = [
+                          "Order Received",
+                          "Packed",
+                          "Shipped",
+                          "Delivered",
+                        ];
+
+                        const progressMap: Record<string, number> = {
+                          Pending: 1,
+                          Confirmed: 1,
+                          Packed: 2,
+                          Shipped: 3,
+                          Delivered: 4,
+                        };
+
+                        const completed = progressMap[order.status || "Pending"] || 1;
+
+                        return (
+                          <div className="rounded-xl border border-[#e7ede9] bg-[#f8fbfa] p-5">
+                            <h3 className="font-semibold text-[#174c49] mb-5">
+                              Order Tracking
+                            </h3>
+
+                            <div className="grid grid-cols-4 gap-2">
+                              {stages.map((stage, stageIndex) => {
+                                const isCompleted = stageIndex < completed;
+
+                                return (
+                                  <div
+                                    key={stage}
+                                    className="flex flex-col items-center text-center"
+                                  >
+                                    <div
+                                      className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
+                                        isCompleted
+                                          ? "bg-[#2e7770] text-white"
+                                          : "bg-gray-200 text-gray-500"
+                                      }`}
+                                    >
+                                      {isCompleted ? "✓" : stageIndex + 1}
+                                    </div>
+
+                                    <p
+                                      className={`text-xs sm:text-sm mt-2 font-medium ${
+                                        isCompleted
+                                          ? "text-[#174c49]"
+                                          : "text-gray-400"
+                                      }`}
+                                    >
+                                      {stage}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <p className="text-sm text-[#648581] text-center mt-5">
+                              {order.status === "Delivered"
+                                ? "Your order has been delivered."
+                                : order.status === "Shipped"
+                                ? "Your order is on its way."
+                                : order.status === "Packed"
+                                ? "Your order has been packed and is getting ready for shipment."
+                                : order.status === "Confirmed"
+                                ? "Your order has been confirmed."
+                                : "We have received your order."}
+                            </p>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+
                   {/* Ordered Products */}
                   <div className="p-6">
 

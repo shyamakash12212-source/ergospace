@@ -356,6 +356,7 @@ app.patch(
       const allowedStatuses = [
         "Pending",
         "Confirmed",
+        "Packed",
         "Shipped",
         "Delivered",
         "Cancelled",

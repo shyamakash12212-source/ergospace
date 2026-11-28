@@ -63,7 +63,7 @@ totalAmount: {
 
 status: {
   type: String,
-  enum: ["Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"],
+  enum: ["Pending", "Confirmed", "Packed", "Shipped", "Delivered", "Cancelled"],
   default: "Pending",
 },
 
